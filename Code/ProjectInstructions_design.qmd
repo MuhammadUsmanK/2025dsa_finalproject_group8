@@ -1,6 +1,6 @@
 ---
 title: "Data Science Applied to Ag - Final Project - Design"
-author: "FULL NAME STUDENT 1 & FULL NAME STUDENT 2"
+author: "Muhammad Usman Khalid"
 format:
   html:
     code-fold: false
@@ -26,23 +26,252 @@ To get you setup, you will need to:
   - Student 1 and 2 work together to update the README file. README files should explain what the repository is about, the goals of that project, who is working in it, and any other important details you may find.  
   
 # Introduction  
-Describe here the introduction of your problem. Consider this as a shortened version of your paper, where you will briefly discuss in 3-4 paragraphs what is the issue/gap in literature, and how the data you collected will help answer this gap.  
+Describe here the introduction of your problem. Consider this as a shortened version of your paper, where you will briefly discuss in 3-4 paragraphs what is the issue/gap in literature, and how the data you collected will help answer this gap.
+With the rising global population, the demand for food production continues to increase. This has led to intensive agricultural practices, including the excessive use of nitrogen-based fertilizers to boost crop yields. While these fertilizers support productivity, they also pose environmental risks, especially when nitrate (NO₃⁻) leaches into water bodies, leading to groundwater contamination and eutrophication.
+
+Nitrate is highly mobile in soil and can be easily lost through leaching or denitrification. Improving nitrogen retention and use efficiency is therefore a critical focus of sustainable agriculture. One promising approach is the use of Locally Effective Microorganisms (LEM) that may enhance nitrate availability through mineralization while potentially reducing losses via denitrification or leaching.
+
+Although many studies have explored the use of microbial inoculants, limited work has been done to evaluate LEM application rates and their effects on nitrate concentration in organically managed soils. This study aims to fill this gap by evaluating the role of LEM in nitrate dynamics under corn production.
 
 # Hypothesis and objectives  
 Describe here your hypothesis, followed by your objectives. Make sure your hypothesis are testable and bold, and objectives are clear.  
 
+Hypothesis:
+Locally effective microorganisms will increase soil nitrate concentration by enhancing nitrogen mineralization.
+Objective:
+To determine the effect of LEM application rates on soil nitrate concentration and to identify the optimal LEM rate that maximizes nitrate availability without excessive nitrogen losses.
+
 # Material and Methods  
 Describe here your overall material and methods as it pertains to the analysis you will conduct, including study description, site/setup description, what equipment was used, etc. just like you would in a paper. Make sure to clearly explain what was measured and how.
+
+Site & Microbial Inoculum Preparation:
+The study was conducted at the Horticulture Farm in Watkinsville, Georgia in 2023. The field had been under organic management for 10 years. Solid LEM was prepared using forest litter from hardwood and pine forests, mixed with semolina (50 lbs), yeast, crushed charcoal, molasses (1 gallon), unpasteurized goat milk (1 gallon), and non-chlorinated water. After 4 weeks of fermentation, 3 kg of solid LEM was suspended in 8 gallons of water + 1 gallon molasses to make liquid LEM, fermented for 3 more weeks.
+
+Planting and Application:
+Corn (Wapsie Valley) was planted on May 15, 2022. LEM was applied at three rates: 0, 1.8, and 3.6 L/m² around corn stems. Soil samples (0–15 cm) were collected 4 weeks after application for nitrate (NO₃⁻) analysis.
 
 ## Study design  
 Clearly describe your study design here, including treatment design (which factors and levels, the hierarchy among them, etc.), and your experimental design (number of reps/blocks, how was randomization performed, etc.), as we talked about in class.  
 
+A Randomized Complete Block Design (RCBD) with repeated measures was used. The factor was LEM rate (3 levels: 0, 1.8, 3.6 L/m²) applied across 4 blocks, totaling 36 plots. Each block contained three replicates per treatment.
 
 ## Statistical analysis  
 Describe here your statistical analysis, including what type of ANOVA model you ran (based on the design above), what was your response variable, what were your explanatory variables and how were the explanatory variables treated (random or fixed). Provide your alpha level. Explain which function from which package you used to analyze this data. Explain how you checked linear model assumptions and whether or not they were met. Overall, make sure you explain in sufficient detail that, if given your data, a knowledgeable person would be able to reproduce your analysis exactly.  
 
+A mixed-effects model was used in R, with nitrate content as the response variable and LEM rate as a fixed effect. Replication was treated as a random effect. Significance was tested at α = 0.05. Assumptions of normality, independence, and homogeneity were validated.
+
+Packages used: tidyverse, car, lme4, broom, emmeans, multcomp
 # Results  
 Here is where the coding is going to happen, and it will be completely up to you. Include under this section as many sub-sections (using ##) and as many chunks needed to create the analytical workflow for your analysis, starting at loading packages and data, wrangling, EDA, modeling, assumptions checking, ANOVA table, means, pairwise comparisons, and final publication-quality plot.  
+
+```{r}
+##Here I will load the packages that I think will be used in this data set
+install.packages(c("tidyverse", "car", "lme4", "broom", "emmeans", "multcomp"))
+library(tidyverse)
+library(car)
+library(lme4)
+library(broom)
+library(emmeans)
+library(multcomp)
+
+
+```
+
+```{r}
+#Here I am importing my data from the source file
+final_df <- read.xlsx("../Data/Final Project.xlsx")
+
+```
+###Data imported looks oaky to run for exploratory data analysis
+
+```{r} 
+#EDA tables
+##Here I am running code for explanatory data analysis to understand data,idetify relationship, check data quality etc.
+
+summary(final_df)
+
+##Used glimpse here to see how data looks like.
+glimpse(final_df)
+
+```
+##The summary above shows that there are 9 treatments with LEM rates of 0, 1.8, and 3.6 where NO3 ranged from a minimum of 5.815 to a maximum of 8.032
+
+```{r final_dfw}
+final_dfw <- final_df %>%
+  mutate(Replication = factor(Replication),
+         `LEM.rate.(L/m2)` = factor(`LEM.rate.(L/m2)`)
+         
+         ) %>%
+  janitor::clean_names()
+
+final_dfw
+## Additionally used the Janitor function to clean the names and make it more presntable.
+```
+```{r LEM boxplot}
+ggplot(final_dfw, aes(x = lem_rate_l_m2, 
+                    y = no3_mg_kg,
+                    color = lem_rate_l_m2)) +
+  geom_boxplot() +
+  geom_jitter() +
+  theme(legend.position = "none")
+```
+##In this chunk data in plot (boxplot) where data points of data sets are presented with three different colors, each representing level/rate of LEM.
+##Box plots here suggest that LEM rate of 3.6 has higher values but can confirm it after running the models and see ANOVA
+```{r model}
+# Changing to sum-to-zero contrast
+options(contrasts = c("contr.sum", "contr.poly"))
+
+# Model fitting
+final_mix_mod <- lmer(no3_mg_kg ~ lem_rate_l_m2 +
+                       (1|replication),
+                     data = final_dfw
+                       )
+
+final_dfw
+
+# Summary
+summary(final_mix_mod)
+
+```
+# Statistical model
+
+## ##Mixed-effect modeling in R
+
+Used a mixed effect model here to address heterogeneous variance, separate variance due to random sampling, accounting for random effects.
+To account for more than one variance component (i.e., random effects and error), we can use function lmer() from package lme4.
+
+
+```{r ANOVA}
+## Here we are running ANOVA to identify significant effect of independent variables over dependent variables, test our hypothesis. ANOVA allow us determine significance based on p-value, and provide a framework for multiple comparisons.
+Anova(final_mix_mod, type=3)
+```
+## Anova table illustrated that there was no significant effect of independent variables
+A model is only valid for inference (i.e., means and pwc) If it fulfills the linear model assumptions.
+
+# Linear model assumptions
+
+## Extracting residuals
+
+## Here I will extract model residuals, and create studentized residuals.
+
+The linear model assumptions are:
+
+-   Independence (no pattern)\
+-   Variance homogeneity (homoscedasticity)\
+-   Normality\
+-   Outlier detection (\< -3 or \> 3)
+```{r final_mix_residual}
+library(broom.mixed)
+
+final_mix_resid <- augment(final_mix_mod) %>%
+  mutate(.studresid=rstudent(final_mix_mod))
+
+final_mix_resid
+
+```
+One difference in mixed models is that the 3 first assumptions are also applied to the **random effects**, so we need to check it for them as well.
+
+### Random effects are iid \~ N(0,var_a)
+
+```{r randeff_rep}
+randeff_rep <- ranef(final_mix_mod)$rep
+
+randeff_rep
+
+```
+For random effects with so few levels (i.e., 4 since that's the number of blocks), the QQ plot is one of the only ways to check for assumptions on random effects.
+
+```{r QQ plot for random effects}
+ggplot(randeff_rep, aes(sample=`(Intercept)`))+
+  stat_qq(  shape = 25,
+            fill = "green", 
+            size = 4,
+            alpha = .9
+  )+
+  stat_qq_line()+
+  labs(x = "Theoretical quantile",
+       y = "Sample quantile")+
+  theme_bw()
+
+```
+#Nothing to worry here, especially since I only have 4 points.
+
+### Within-group errors are iid \~ N(0, var_e)
+```{r}
+ggplot(final_mix_resid, aes(x=.fitted, y=.studresid))+
+  geom_hline(yintercept = 0, color="blue")+
+  geom_point(shape = 20,
+             fill = "red", 
+             size = 3,
+             alpha = .7) +
+  geom_smooth()+
+  geom_hline(yintercept = c(-3,3), color = "blue")+
+  theme_bw()
+```
+ **Independence**: seems liker there is a potential pattern, but since error bands comprise 0 on the y-axis, I'm not worried.
+
+-   **Variance homoscedastic**: seems constant across the x-axis.
+
+-   **Outliers**: nothing outside the -2,4 boundaries.
+
+```{r}
+ggplot(final_mix_resid, aes(sample=.studresid))+
+  stat_qq(  shape = 25,
+            fill = "green", 
+            size = 4,
+            alpha = .9
+  )+
+  stat_qq_line()+
+  labs(x = "Theoretical quantile",
+       y = "Sample quantile")+
+  theme_bw()
+```
+```{r}
+ggplot(final_mix_resid, aes(x=.studresid))+
+  geom_density(color = "black",
+               fill = "blue",
+               alpha = .8)+
+  scale_x_continuous(breaks = c(-3,0,4), limits = c(-3,4))+
+  theme_bw()
+```
+**Normality**: residuals seem normal for most part.
+
+
+# Final plot
+
+##After going through the linear assumption I will run codes to make the final plot to inspect data distribution of both raw data and statistical model summary with letter separation.
+```{r final plot}
+ggplot(mapping = aes(fill = lem_rate_l_m2))+
+  # Raw data and boxplots  
+  geom_boxplot(data = final_dfw,
+               aes(x = lem_rate_l_m2, y = no3_mg_kg),
+               alpha = .8) +
+  geom_jitter(data = final_dfw,
+               aes(x = lem_rate_l_m2, y = no3_mg_kg),
+              shape = 20,
+              size = 3,
+              alpha = .7) +
+   
+  labs(x = "LEM rate (l/m2)",
+       y = "NO3 (mg/kg)") +
+  scale_fill_viridis_d() +
+  theme(panel.grid.major.y = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        legend.position = "none")
+
+ggsave("../Output//final_mix_means.png",
+       width = 8,
+       height = 5)
+```
+###The final plot illustrates the effect of different LEM application rates (0, 1.8, and 3.6 L/m²) on soil nitrate (NO₃⁻) concentration (mg/kg) through boxplots combined with jittered data points.
+
+Treatment with 0 L/m2 (control) generally exhibited lower NO3 concentrations compared to the two LEM-treated groups, suggesting limited microbial enhancement of nitrogen mineralization in the absence of inoculation.
+
+LEM at 1.8 L/m2 showed a moderate increase in NO3 concentration, with most values clustered in a higher range than the control. This suggests that a moderate application of LEM may stimulate microbial activity involved in nitrogen mineralization.
+
+LEM at 3.6 L/m2 demonstrated the highest median NO3 values and a wider distribution of nitrate concentrations. The presence of higher outliers may indicate enhanced mineralization or variability in microbial activity and nitrogen transformation processes at the highest application rate.
+
+###Overall, the plot supports the hypothesis that LEM application improves nitrate availability in organically managed soils, with increasing application rates resulting in higher soil NO₃⁻ concentrations. This suggests potential for optimized LEM dosing to enhance nitrogen availability in sustainable cropping systems.
 
 Make sure to run a model that reflects your study design. Even if your study design does not include one of the designs covered in class, you are still expected to run the most appropriate model. If you need help for references, let me know.  
 
